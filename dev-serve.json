@@ -1,6 +1,0 @@
-{
-  "project": "slabforge",
-  "base_port": 8090,
-  "start_command": "npm run dev -- --host 0.0.0.0 --port $PORT",
-  "health_check": "http://localhost:$PORT/"
-}
