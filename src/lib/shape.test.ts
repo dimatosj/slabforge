@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import golden from "../../test-fixtures/golden-geometry.json";
-import makeShape from "./shape";
+import makeShape, { convertUnits } from "./shape";
 
 type Vec3 = { x: number; y: number; z: number };
 
@@ -9,6 +9,18 @@ function expectVecClose(actual: Vec3, expected: Vec3, label: string) {
   expect(actual.y, `${label}.y`).toBeCloseTo(expected.y, 6);
   expect(actual.z, `${label}.z`).toBeCloseTo(expected.z, 6);
 }
+
+describe("convertUnits mm", () => {
+  it("converts cm to mm exactly (factor 10)", () => {
+    expect(convertUnits(5, "cm", "mm")).toBeCloseTo(50, 9);
+  });
+  it("converts in to mm (~25.4 mm/in via the pt pivot)", () => {
+    expect(convertUnits(5, "in", "mm")).toBeCloseTo(126.984, 2);
+  });
+  it("round-trips mm through pt", () => {
+    expect(convertUnits(convertUnits(7, "mm", "pt"), "pt", "mm")).toBeCloseTo(7, 9);
+  });
+});
 
 describe("makeShape golden output", () => {
   for (const c of golden as any[]) {

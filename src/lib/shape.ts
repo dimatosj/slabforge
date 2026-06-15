@@ -1,6 +1,6 @@
 import round from "lodash/round";
 
-export type Units = "pt" | "in" | "cm" | "px";
+export type Units = "pt" | "in" | "cm" | "px" | "mm";
 export type Vec3 = { x: number; y: number; z: number };
 export type Color = { r: number; g: number; b: number };
 export type Face = { a: number; b: number; c: number; normal: Vec3; color: Color };
@@ -41,6 +41,8 @@ export function convertUnits(quantity: number, from: Units, to: Units): number {
         quantityPt = quantity * 72;
     } else if (from === "cm") {
         quantityPt = quantity * 28.35;
+    } else if (from === "mm") {
+        quantityPt = quantity * 2.835;
     } else if (from === "px") {
         // on my current primary monitor, 72pt is 96px
         quantityPt = quantity * (72 / 96);
@@ -54,6 +56,8 @@ export function convertUnits(quantity: number, from: Units, to: Units): number {
         return quantityPt / 72;
     } else if (to === "cm") {
         return quantityPt / 28.35;
+    } else if (to === "mm") {
+        return quantityPt / 2.835;
     } else if (to === "px") {
         // on my current primary monitor, 72pt is 96px
         return quantityPt / (72 / 96);
