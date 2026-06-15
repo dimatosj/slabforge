@@ -1,5 +1,8 @@
-import PDFDocument from "pdfkit";
-import makeShape, { convertUnits } from "../lib/shape.js";
+// @ts-nocheck
+import PDFDocument from "pdfkit/js/pdfkit.standalone.js";
+import { Buffer } from "node:buffer";
+import type { RequestHandler } from "./$types";
+import makeShape, { convertUnits } from "$lib/shape";
 
 function calcScale(units) {
     return convertUnits(1, units, "pt");
@@ -499,121 +502,100 @@ function drawInstructions(doc, sides, shape, templateSettings) {
     drawAssembleInstructions(doc, startY, stepHeight, stepNumber, seamMode);
 }
 
-export async function get(req, res, next) {
-    const { searchParams: params } = new URL(
-        req.url,
-        `http://${req.headers.host}`
-    );
-    let {
-        sides,
-        height,
-        bottomWidth,
-        topWidth,
-        clayThickness,
-        seamMode,
-        units,
-        pageSize,
-        noDownload,
-    } = Object.fromEntries(params.entries());
-    const shape = makeShape(
-        sides,
-        height,
-        bottomWidth,
-        topWidth,
-        clayThickness,
-        seamMode,
-        units
-    );
-    res.setHeader("Content-Type", "application/pdf");
-    if (!noDownload) {
-        const type = sides === "∞" ? "circle" : "prism-" + sides;
-        const filename = `slabforge-${type}-${height}-${bottomWidth}-${topWidth}-${clayThickness}-${seamMode}-${units}.pdf`;
-        res.setHeader(
-            "Content-Disposition",
-            `attachment; filename="${filename}"`
-        );
+export const GET: RequestHandler = async ({ url }) => {
+  const params = Object.fromEntries(url.searchParams.entries());
+  let { sides, height, bottomWidth, topWidth, clayThickness, seamMode, units, pageSize, noDownload } = params;
+
+  const shape = makeShape(
+    sides === "∞" ? "∞" : Number(sides),
+    height,
+    bottomWidth,
+    topWidth,
+    clayThickness,
+    seamMode,
+    units
+  );
+
+  const scale = calcScale(shape.units);
+  const shapeBounds = shape.calcPDFBounds();
+  const bounds = {
+    left: shapeBounds.left * scale,
+    right: shapeBounds.right * scale,
+    top: shapeBounds.top * scale,
+    bottom: shapeBounds.bottom * scale,
+  };
+  const minPDFWidth = bounds.right - bounds.left;
+  const minPDFHeight = bounds.bottom - bounds.top;
+
+  let size = pageSize;
+  if (pageSize === "auto") {
+    size = [minPDFWidth + 72, minPDFHeight + 72];
+  }
+
+  const doc = new PDFDocument({ size, margin: 36 });
+  const chunks = [];
+  doc.on("data", (c) => chunks.push(c));
+  const finished = new Promise((resolve) => doc.on("end", () => resolve()));
+
+  const pageMargin = doc.page.margins.top;
+  const pageContentWidth = doc.page.width - 2 * pageMargin;
+  const pageContentHeight = doc.page.height - 2 * pageMargin;
+
+  const widthPages = Math.ceil(minPDFWidth / pageContentWidth);
+  const heightPages = Math.ceil(minPDFHeight / pageContentHeight);
+
+  const shapeWalls = shape.calcWalls();
+  const shapeCreases = shape.calcCreaseMarkers();
+  const shapeBevelMarkers = shape.calcBevelMarkers();
+
+  let bevelGuidePath = shapeWalls[shapeWalls.length - 1];
+  let bevelGuidePositionMatch = /L [\-.\d]+,[\-.\d]+ ([\-.\d]+),([\-.\d]+)/.exec(bevelGuidePath);
+  let bevelGuideX = parseFloat(bevelGuidePositionMatch[1]);
+  let bevelGuideY = parseFloat(bevelGuidePositionMatch[2]);
+
+  let templateSettings = {
+    widthPages,
+    heightPages,
+    scale,
+    shapeWalls,
+    shapeCreases,
+    shapeBevelMarkers,
+    bevelGuideX,
+    bevelGuideY,
+    units,
+    bounds: shapeBounds,
+  };
+
+  drawInstructions(doc, sides, shape, templateSettings);
+  doc.addPage();
+
+  for (let pageY = 0; pageY < heightPages; pageY++) {
+    for (let pageX = 0; pageX < widthPages; pageX++) {
+      doc.rect(pageMargin, pageMargin, pageContentWidth, pageContentHeight).stroke("#AAA");
+      doc.strokeColor("black");
+      drawTemplate(doc, templateSettings, {
+        safeX: pageMargin,
+        safeY: pageMargin,
+        safeWidth: pageContentWidth,
+        safeHeight: pageContentHeight,
+        pageX,
+        pageY,
+        extraScale: 1,
+      });
+      if (pageX < widthPages - 1 || pageY < heightPages - 1) {
+        doc.addPage();
+      }
     }
+  }
 
-    const scale = calcScale(shape.units);
-    const shapeBounds = shape.calcPDFBounds();
-    const bounds = {
-        left: shapeBounds.left * scale,
-        right: shapeBounds.right * scale,
-        top: shapeBounds.top * scale,
-        bottom: shapeBounds.bottom * scale,
-    };
-    const minPDFWidth = bounds.right - bounds.left;
-    const minPDFHeight = bounds.bottom - bounds.top;
+  doc.end();
+  await finished;
+  const body = Buffer.concat(chunks);
 
-    if (pageSize === "auto") {
-        pageSize = [minPDFWidth + 72, minPDFHeight + 72];
-    }
-    const doc = new PDFDocument({
-        size: pageSize,
-        margin: 36,
-    });
-    doc.pipe(res);
-
-    const pageMargin = doc.page.margins.top;
-    const pageContentWidth = doc.page.width - 2 * pageMargin;
-    const pageContentHeight = doc.page.height - 2 * pageMargin;
-
-    const widthPages = Math.ceil(minPDFWidth / pageContentWidth);
-    const heightPages = Math.ceil(minPDFHeight / pageContentHeight);
-
-    const shapeWalls = shape.calcWalls();
-    const shapeCreases = shape.calcCreaseMarkers();
-    const shapeBevelMarkers = shape.calcBevelMarkers();
-
-    // find the bevel guide position
-    let bevelGuidePath = shapeWalls[shapeWalls.length - 1];
-    let bevelGuidePositionMatch = /L [\-.\d]+,[\-.\d]+ ([\-.\d]+),([\-.\d]+)/.exec(
-        bevelGuidePath
-    );
-    let bevelGuideX = parseFloat(bevelGuidePositionMatch[1]);
-    let bevelGuideY = parseFloat(bevelGuidePositionMatch[2]);
-
-    let templateSettings = {
-        widthPages,
-        heightPages,
-        scale,
-        shapeWalls,
-        shapeCreases,
-        shapeBevelMarkers,
-        bevelGuideX,
-        bevelGuideY,
-        units,
-        bounds: shapeBounds,
-    };
-
-    // instructions page
-    drawInstructions(doc, sides, shape, templateSettings);
-
-    doc.addPage();
-
-    // actual template
-    for (let pageY = 0; pageY < heightPages; pageY++) {
-        for (let pageX = 0; pageX < widthPages; pageX++) {
-            doc.rect(
-                pageMargin,
-                pageMargin,
-                pageContentWidth,
-                pageContentHeight
-            ).stroke("#AAA");
-            doc.strokeColor("black");
-            drawTemplate(doc, templateSettings, {
-                safeX: pageMargin,
-                safeY: pageMargin,
-                safeWidth: pageContentWidth,
-                safeHeight: pageContentHeight,
-                pageX,
-                pageY,
-                extraScale: 1,
-            });
-            if (pageX < widthPages - 1 || pageY < heightPages - 1) {
-                doc.addPage();
-            }
-        }
-    }
-    doc.end();
-}
+  const headers = { "Content-Type": "application/pdf" };
+  if (!noDownload) {
+    const type = sides === "∞" ? "circle" : "prism-" + sides;
+    headers["Content-Disposition"] = `attachment; filename="slabforge-${type}-${height}-${bottomWidth}-${topWidth}-${clayThickness}-${seamMode}-${units}.pdf"`;
+  }
+  return new Response(body, { headers });
+};
