@@ -291,14 +291,12 @@ class Prism {
         const { sides, clayThickness } = this;
         const { bottomRadius, bottomSideLen, topSideLen } = this.doMath();
 
+        // Base outline = interior floor footprint (width = interior dimension).
         let base = "M ";
         for (let k = 0; k < sides; k++) {
             const theta = (2 * Math.PI * k) / sides;
-            const x = Math.cos(theta) * (bottomRadius + clayThickness);
-            const y =
-                Math.sin(theta) * (bottomRadius + clayThickness) +
-                bottomRadius +
-                1;
+            const x = Math.cos(theta) * bottomRadius;
+            const y = Math.sin(theta) * bottomRadius + bottomRadius + 1;
             base += `${x},${y} `;
         }
         base += "z";
@@ -316,19 +314,19 @@ class Prism {
         // calculate the bevel guide
         const minSideLen = Math.min(bottomSideLen, topSideLen);
         const bevelGuideLength = sides * minSideLen;
-        const outerBottomWidth = 2 * (bottomRadius + clayThickness);
+        const baseDiameter = 2 * bottomRadius;
         const guide =
             `M ${bevelGuideLength / 2 + clayThickness / 2},${
-                outerBottomWidth + 2
+                baseDiameter + 2
             } ` +
             `L ${bevelGuideLength / 2 - clayThickness / 2},${
-                outerBottomWidth + 2 + clayThickness
+                baseDiameter + 2 + clayThickness
             } ` +
             `${-bevelGuideLength / 2 - clayThickness / 2},${
-                outerBottomWidth + 2 + clayThickness
+                baseDiameter + 2 + clayThickness
             } ` +
             `${-bevelGuideLength / 2 + clayThickness / 2},${
-                outerBottomWidth + 2
+                baseDiameter + 2
             } z`;
         return [base, walls, guide];
     }
@@ -638,11 +636,12 @@ class Conic {
         const { bottomWidth, clayThickness } = this;
         const { bottomRadius, topRadius, wallLength } = this.doMath();
         const result = [];
-        const outerBottomRadius = bottomRadius + clayThickness;
-        const outerBottomWidth = bottomWidth + 2 * clayThickness;
+        // Base outline = interior footprint (radius = interior dimension).
+        const baseRadius = bottomRadius;
+        const baseDiameter = bottomWidth;
         // Bottom is easy.
         result.push(
-            `M 0,0 A ${outerBottomRadius} ${outerBottomRadius} 0 1 0 0,${outerBottomWidth} ${outerBottomRadius} ${outerBottomRadius} 0 1 0 0,0`
+            `M 0,0 A ${baseRadius} ${baseRadius} 0 1 0 0,${baseDiameter} ${baseRadius} ${baseRadius} 0 1 0 0,0`
         );
         let bevelGuideLength;
         // Wall and bevel guide when the radii match is easy.
@@ -675,16 +674,16 @@ class Conic {
         }
         result.push(
             `M ${bevelGuideLength / 2 + clayThickness / 2},${
-                outerBottomWidth + 1
+                baseDiameter + 1
             } ` +
                 `L ${bevelGuideLength / 2 - clayThickness / 2},${
-                    outerBottomWidth + 1 + clayThickness
+                    baseDiameter + 1 + clayThickness
                 } ` +
                 `${-bevelGuideLength / 2 - clayThickness / 2},${
-                    outerBottomWidth + 1 + clayThickness
+                    baseDiameter + 1 + clayThickness
                 } ` +
                 `${-bevelGuideLength / 2 + clayThickness / 2},${
-                    outerBottomWidth + 1
+                    baseDiameter + 1
                 } z`
         );
         return result;
@@ -721,9 +720,9 @@ class Conic {
     calcPDFBounds() {
         const { bottomWidth, clayThickness } = this;
         const { bottomRadius, topRadius, wallLength } = this.doMath();
-        const outerBottomWidth = bottomWidth + 2 * clayThickness;
+        const baseDiameter = bottomWidth; // interior footprint
         const xs = [0];
-        const ys = [0, bottomWidth, outerBottomWidth + 1 + clayThickness];
+        const ys = [0, bottomWidth, baseDiameter + 1 + clayThickness];
         if (bottomRadius === topRadius) {
             const circumference = 2 * Math.PI * bottomRadius;
             xs.push(-circumference / 2, circumference / 2);

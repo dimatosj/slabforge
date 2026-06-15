@@ -22,6 +22,20 @@ describe("convertUnits mm", () => {
   });
 });
 
+describe("base-seam uses interior dimension", () => {
+  it("draws the prism base outline at the interior radius (not +clayThickness)", () => {
+    const sides = 4, bottomWidth = 5, clayThickness = 0.25;
+    const shape = makeShape(sides, 5, bottomWidth, 5, clayThickness, "base", "in");
+    const bottomApothem = bottomWidth / 2;
+    const bottomRadius = bottomApothem / Math.cos(Math.PI / sides);
+    // base outline is calcWalls()[0]: "M x0,y0 x1,y1 ... z"; first vertex (k=0) x = cos(0)*radius
+    const base = shape.calcWalls()[0];
+    const firstX = parseFloat(base.replace(/^M\s+/, "").split(",")[0]);
+    expect(firstX).toBeCloseTo(bottomRadius, 6); // interior
+    expect(firstX).not.toBeCloseTo(bottomRadius + clayThickness, 6); // not exterior
+  });
+});
+
 describe("makeShape golden output", () => {
   for (const c of golden as any[]) {
     const p = c.params;

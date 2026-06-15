@@ -1,8 +1,7 @@
-// Run against the EXISTING src/lib/shape.js (three.js 0.124) to record golden
-// outputs. Run with: npx tsx scripts/capture-golden.ts
+// Regenerate the geometry golden fixtures from the current TypeScript module.
+// Run with: npx tsx scripts/capture-golden.ts
 import { writeFileSync } from "node:fs";
-// @ts-ignore - legacy JS module, no types
-import makeShape from "../src/lib/shape.js";
+import makeShape from "../src/lib/shape.ts";
 
 const CASES = [
   { sides: 4, height: 5, bottomWidth: 5, topWidth: 5, clayThickness: 0.25, seamMode: "sides", units: "in" },
