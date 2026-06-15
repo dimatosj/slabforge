@@ -789,3 +789,5 @@ export default function makeShape(
         );
     }
 }
+
+export type Shape = ReturnType<typeof makeShape>;

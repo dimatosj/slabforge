@@ -1,4 +1,16 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
+
+  interface Props {
+    value: unknown;
+    min?: string | number;
+    max?: string | number;
+    step?: string | number;
+    onmouseenter?: (event: MouseEvent) => void;
+    onmouseleave?: (event: MouseEvent) => void;
+    children?: Snippet;
+  }
+
   let {
     value = $bindable(),
     min = undefined,
@@ -7,7 +19,7 @@
     onmouseenter = undefined,
     onmouseleave = undefined,
     children,
-  } = $props();
+  }: Props = $props();
 </script>
 
 <fieldset {onmouseenter} {onmouseleave}>

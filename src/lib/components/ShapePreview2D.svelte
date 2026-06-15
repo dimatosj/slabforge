@@ -1,8 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { convertUnits, type Units } from "$lib/shape";
+  import { convertUnits, type Units, type Shape } from "$lib/shape";
 
-  let { shape } = $props();
+  interface Props {
+    shape: Shape;
+  }
+
+  let { shape }: Props = $props();
 
   let svg: SVGSVGElement;
   let svgWidth = $state(1);

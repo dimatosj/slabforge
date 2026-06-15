@@ -1,7 +1,14 @@
 <script lang="ts">
   import { v4 as uuid } from "uuid";
+  import type { Snippet } from "svelte";
 
-  let { value = $bindable(), options, children } = $props();
+  interface Props {
+    value: unknown;
+    options: unknown[];
+    children?: Snippet;
+  }
+
+  let { value = $bindable(), options, children }: Props = $props();
 
   let effectiveOptions = $derived(
     options.map((x: unknown) => (Array.isArray(x) ? x : [x, x]))

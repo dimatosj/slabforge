@@ -2,9 +2,14 @@
   import * as THREE from "three";
   import { onMount } from "svelte";
   import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-  import type { Mesh as ShapeMesh, LineGeometry } from "$lib/shape";
+  import type { Mesh as ShapeMesh, LineGeometry, Shape } from "$lib/shape";
 
-  let { shape, highlightTarget } = $props();
+  interface Props {
+    shape: Shape;
+    highlightTarget: string;
+  }
+
+  let { shape, highlightTarget }: Props = $props();
 
   let canvas: HTMLCanvasElement;
 
