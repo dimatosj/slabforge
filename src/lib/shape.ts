@@ -66,6 +66,32 @@ export function convertUnits(quantity: number, from: Units, to: Units): number {
     }
 }
 
+// Extracts the bounding box of one or more SVG path strings by scanning their
+// "x,y" coordinate pairs. The exponent branch accepts e+ / e- so large-magnitude
+// coordinates are not silently truncated.
+const COORD_RE = /(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)?,(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)/g;
+export function svgPathExtents(paths: string[]): {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+} {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const path of paths) {
+    for (const point of path.matchAll(COORD_RE)) {
+      if (point[1] !== undefined) xs.push(parseFloat(point[1]));
+      ys.push(parseFloat(point[2]));
+    }
+  }
+  return {
+    top: Math.min(...ys),
+    bottom: Math.max(...ys),
+    left: Math.min(...xs),
+    right: Math.max(...xs),
+  };
+}
+
 class Prism {
     sides: number;
     height: number;
@@ -407,24 +433,7 @@ class Prism {
     }
 
     calcPDFBounds() {
-        const walls = this.calcWalls();
-        const xs = [];
-        const ys = [];
-        for (const wall of walls) {
-            for (const point of wall.matchAll(
-                /(-?\d+(?:\.\d+)?(?:e-?\d+)?)?,(-?\d+(?:\.\d+)?(?:e-?\d+)?)/g
-            )) {
-                let [x, y] = [point[1], point[2]];
-                xs.push(parseFloat(x));
-                ys.push(parseFloat(y));
-            }
-        }
-        return {
-            top: Math.min(...ys),
-            bottom: Math.max(...ys),
-            left: Math.min(...xs),
-            right: Math.max(...xs),
-        };
+        return svgPathExtents(this.calcWalls());
     }
 
     calc3DVertices() {

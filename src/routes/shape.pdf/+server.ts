@@ -549,9 +549,10 @@ export const GET: RequestHandler = async ({ url }) => {
   const shapeBevelMarkers = shape.calcBevelMarkers();
 
   let bevelGuidePath = shapeWalls[shapeWalls.length - 1];
-  let bevelGuidePositionMatch = /L [\-.\d]+,[\-.\d]+ ([\-.\d]+),([\-.\d]+)/.exec(bevelGuidePath);
-  let bevelGuideX = parseFloat(bevelGuidePositionMatch[1]);
-  let bevelGuideY = parseFloat(bevelGuidePositionMatch[2]);
+  let bevelGuidePositionMatch =
+    /L [\-.\de+]+,[\-.\de+]+ (-?[\d.]+(?:e[+-]?\d+)?),(-?[\d.]+(?:e[+-]?\d+)?)/.exec(bevelGuidePath);
+  let bevelGuideX = bevelGuidePositionMatch ? parseFloat(bevelGuidePositionMatch[1]) : 0;
+  let bevelGuideY = bevelGuidePositionMatch ? parseFloat(bevelGuidePositionMatch[2]) : 0;
 
   let templateSettings = {
     widthPages,

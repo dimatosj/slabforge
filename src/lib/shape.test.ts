@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import golden from "../../test-fixtures/golden-geometry.json";
-import makeShape, { convertUnits } from "./shape";
+import makeShape, { convertUnits, svgPathExtents } from "./shape";
 
 type Vec3 = { x: number; y: number; z: number };
 
@@ -9,6 +9,19 @@ function expectVecClose(actual: Vec3, expected: Vec3, label: string) {
   expect(actual.y, `${label}.y`).toBeCloseTo(expected.y, 6);
   expect(actual.z, `${label}.z`).toBeCloseTo(expected.z, 6);
 }
+
+describe("svgPathExtents", () => {
+  it("parses normal coordinates", () => {
+    expect(svgPathExtents(["M 1,2 3,4 z"])).toEqual({ top: 2, bottom: 4, left: 1, right: 3 });
+  });
+  it("parses exponential coordinates including e+", () => {
+    const ext = svgPathExtents(["M 1e+21,-2e+21 3,4 z"]);
+    expect(ext.right).toBe(1e21);
+    expect(ext.top).toBe(-2e21);
+    expect(ext.left).toBe(3);
+    expect(ext.bottom).toBe(4);
+  });
+});
 
 describe("convertUnits mm", () => {
   it("converts cm to mm exactly (factor 10)", () => {
