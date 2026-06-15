@@ -1,0 +1,8 @@
+node_modules
+.svelte-kit
+build
+.git
+cypress
+e2e
+test-results
+playwright-report
