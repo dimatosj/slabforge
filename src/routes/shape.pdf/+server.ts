@@ -3,6 +3,7 @@ import PDFDocument from "pdfkit/js/pdfkit.standalone.js";
 import { Buffer } from "node:buffer";
 import type { RequestHandler } from "./$types";
 import makeShape, { convertUnits } from "$lib/shape";
+import { parseShapeParams, ShapeParamError } from "$lib/shapeParams";
 
 function calcScale(units) {
     return convertUnits(1, units, "pt");
@@ -503,18 +504,17 @@ function drawInstructions(doc, sides, shape, templateSettings) {
 }
 
 export const GET: RequestHandler = async ({ url }) => {
-  const params = Object.fromEntries(url.searchParams.entries());
-  let { sides, height, bottomWidth, topWidth, clayThickness, seamMode, units, pageSize, noDownload } = params;
+  let p;
+  try {
+    p = parseShapeParams(url.searchParams);
+  } catch (e) {
+    if (e instanceof ShapeParamError) return new Response(e.message, { status: 400 });
+    throw e;
+  }
+  const { sides, height, bottomWidth, topWidth, clayThickness, seamMode, units, pageSize } = p;
+  const noDownload = url.searchParams.get("noDownload");
 
-  const shape = makeShape(
-    sides === "∞" ? "∞" : Number(sides),
-    height,
-    bottomWidth,
-    topWidth,
-    clayThickness,
-    seamMode,
-    units
-  );
+  const shape = makeShape(sides, height, bottomWidth, topWidth, clayThickness, seamMode, units);
 
   const scale = calcScale(shape.units);
   const shapeBounds = shape.calcPDFBounds();
