@@ -1,9 +1,39 @@
-import { Color, Face3, Geometry, Vector3 } from "three";
 import round from "lodash/round";
 
-const RED = new Color(0xff6633);
+export type Units = "pt" | "in" | "cm" | "px";
+export type Vec3 = { x: number; y: number; z: number };
+export type Color = { r: number; g: number; b: number };
+export type Face = { a: number; b: number; c: number; normal: Vec3; color: Color };
+export type Mesh = { vertices: Vec3[]; faces: Face[] };
+export type LineGeometry = { vertices: Vec3[] };
 
-export function convertUnits(quantity, from, to) {
+const WHITE: Color = { r: 1, g: 1, b: 1 };
+const RED: Color = { r: 1, g: 0.4, b: 0.2 }; // three.js Color(0xff6633)
+
+function sub(a: Vec3, b: Vec3): Vec3 {
+  return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z };
+}
+function cross(a: Vec3, b: Vec3): Vec3 {
+  return {
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x,
+  };
+}
+function normalize(v: Vec3): Vec3 {
+  const len = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z) || 1;
+  return { x: v.x / len, y: v.y / len, z: v.z / len };
+}
+// Replicates three.js r124 Geometry.computeFaceNormals():
+// normal = normalize((vC - vB) x (vA - vB))
+function faceNormal(va: Vec3, vb: Vec3, vc: Vec3): Vec3 {
+  return normalize(cross(sub(vc, vb), sub(va, vb)));
+}
+function lerp(a: Vec3, b: Vec3, t: number): Vec3 {
+  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t };
+}
+
+export function convertUnits(quantity: number, from: Units, to: Units): number {
     let quantityPt;
     if (from === "pt") {
         quantityPt = quantity;
@@ -33,14 +63,22 @@ export function convertUnits(quantity, from, to) {
 }
 
 class Prism {
+    sides: number;
+    height: number;
+    bottomWidth: number;
+    topWidth: number;
+    clayThickness: number;
+    seamMode: string;
+    units: Units;
+
     constructor(
-        sides,
-        height,
-        bottomWidth,
-        topWidth,
-        clayThickness,
-        seamMode,
-        units
+        sides: number,
+        height: number,
+        bottomWidth: number,
+        topWidth: number,
+        clayThickness: number,
+        seamMode: string,
+        units: Units
     ) {
         this.sides = sides;
         this.height = height;
@@ -178,7 +216,7 @@ class Prism {
             },
             rotate: -totalTheta / 2,
 
-            apply(point) {
+            apply(point: { x: number; y: number }) {
                 let relX = point.x - this.center.x;
                 let relY = point.y - this.center.y;
                 let rotX =
@@ -390,11 +428,11 @@ class Prism {
     calc3DVertices() {
         let { sides, height, clayThickness } = this;
         const { bottomRadius, topRadius, bevelFactor } = this.doMath();
-        const vertices = [];
+        const vertices: Vec3[] = [];
 
-        function makeVertex(x, y, z) {
+        function makeVertex(x: number, y: number, z: number): number {
             const result = vertices.length;
-            vertices.push(new Vector3(x, y, z));
+            vertices.push({ x, y, z });
             return result;
         }
         const outerBottomCenter = makeVertex(0, 0, 0);
@@ -404,10 +442,8 @@ class Prism {
         const cornerThickness = clayThickness / Math.cos(bevelFactor) / 2;
         for (let k = 0; k < sides; k++) {
             const theta = (2 * Math.PI * k) / sides;
-            const outerBottomX =
-                Math.cos(theta) * (bottomRadius + cornerThickness);
-            const outerBottomZ =
-                Math.sin(theta) * (bottomRadius + cornerThickness);
+            const outerBottomX = Math.cos(theta) * (bottomRadius + cornerThickness);
+            const outerBottomZ = Math.sin(theta) * (bottomRadius + cornerThickness);
             const innerBottomX = Math.cos(theta) * bottomRadius;
             const innerBottomZ = Math.sin(theta) * bottomRadius;
             const outerTopX = Math.cos(theta) * (topRadius + cornerThickness);
@@ -416,179 +452,88 @@ class Prism {
             const innerTopZ = Math.sin(theta) * topRadius;
             sideVertices.push({
                 outerBottom: makeVertex(outerBottomX, 0, outerBottomZ),
-                innerBottom: makeVertex(
-                    innerBottomX,
-                    clayThickness,
-                    innerBottomZ
-                ),
-                outerTop: makeVertex(
-                    outerTopX,
-                    height + clayThickness,
-                    outerTopZ
-                ),
-                innerTop: makeVertex(
-                    innerTopX,
-                    height + clayThickness,
-                    innerTopZ
-                ),
+                innerBottom: makeVertex(innerBottomX, clayThickness, innerBottomZ),
+                outerTop: makeVertex(outerTopX, height + clayThickness, outerTopZ),
+                innerTop: makeVertex(innerTopX, height + clayThickness, innerTopZ),
             });
         }
-        return {
-            vertices,
-            outerBottomCenter,
-            innerBottomCenter,
-            topCenter,
-            sideVertices,
-        };
+        return { vertices, outerBottomCenter, innerBottomCenter, topCenter, sideVertices };
     }
 
-    calc3DGeometry() {
+    calc3DGeometry(): Mesh {
         let { sides } = this;
-        let {
-            vertices,
-            outerBottomCenter,
-            innerBottomCenter,
-            sideVertices,
-        } = this.calc3DVertices();
-        const geometry = new Geometry();
-        geometry.vertices = vertices;
+        let { vertices, outerBottomCenter, innerBottomCenter, sideVertices } = this.calc3DVertices();
+        const faces: Face[] = [];
+        const pushFace = (a: number, b: number, c: number, color: Color = WHITE) => {
+            faces.push({ a, b, c, color, normal: faceNormal(vertices[a], vertices[b], vertices[c]) });
+        };
         for (let k = 0; k < sides; k++) {
             const thisSide = sideVertices[k];
             const nextSide = sideVertices[(k + 1) % sides];
-            const outerBottom = new Face3(
-                outerBottomCenter,
-                thisSide.outerBottom,
-                nextSide.outerBottom
-            );
-            outerBottom.color = RED;
-            const innerBottom = new Face3(
-                innerBottomCenter,
-                nextSide.innerBottom,
-                thisSide.innerBottom
-            );
-            innerBottom.color = RED;
-            geometry.faces.push(
-                outerBottom,
-                new Face3(
-                    thisSide.outerBottom,
-                    thisSide.outerTop,
-                    nextSide.outerBottom
-                ),
-                new Face3(
-                    nextSide.outerBottom,
-                    thisSide.outerTop,
-                    nextSide.outerTop
-                ),
-                innerBottom,
-                new Face3(
-                    thisSide.innerBottom,
-                    nextSide.innerBottom,
-                    thisSide.innerTop
-                ),
-                new Face3(
-                    nextSide.innerBottom,
-                    nextSide.innerTop,
-                    thisSide.innerTop
-                ),
-                new Face3(
-                    thisSide.outerTop,
-                    thisSide.innerTop,
-                    nextSide.outerTop
-                ),
-                new Face3(
-                    nextSide.outerTop,
-                    thisSide.innerTop,
-                    nextSide.innerTop
-                )
-            );
+            pushFace(outerBottomCenter, thisSide.outerBottom, nextSide.outerBottom, RED);
+            pushFace(thisSide.outerBottom, thisSide.outerTop, nextSide.outerBottom);
+            pushFace(nextSide.outerBottom, thisSide.outerTop, nextSide.outerTop);
+            pushFace(innerBottomCenter, nextSide.innerBottom, thisSide.innerBottom, RED);
+            pushFace(thisSide.innerBottom, nextSide.innerBottom, thisSide.innerTop);
+            pushFace(nextSide.innerBottom, nextSide.innerTop, thisSide.innerTop);
+            pushFace(thisSide.outerTop, thisSide.innerTop, nextSide.outerTop);
+            pushFace(nextSide.outerTop, thisSide.innerTop, nextSide.innerTop);
         }
-        geometry.computeFaceNormals();
-        return geometry;
+        return { vertices, faces };
     }
 
-    calcHighlightGeometry(target) {
-        let { sides } = this;
-        let {
-            vertices,
-            outerBottomCenter,
-            innerBottomCenter,
-            topCenter,
-            sideVertices,
-        } = this.calc3DVertices();
-        const geometry = new Geometry();
+    calcHighlightGeometry(target: string): LineGeometry {
+        let { vertices, outerBottomCenter, innerBottomCenter, topCenter, sideVertices } = this.calc3DVertices();
+        const out: Vec3[] = [];
         if (target === "height") {
-            geometry.vertices.push(
-                vertices[innerBottomCenter],
-                vertices[topCenter]
-            );
+            out.push(vertices[innerBottomCenter], vertices[topCenter]);
         } else if (target === "topWidth") {
-            // width is measured from midpoint to midpoint, not corner to corner
             const inner0 = vertices[sideVertices[0].innerTop];
             const inner1 = vertices[sideVertices[1].innerTop];
-            const innerStart = new Vector3().lerpVectors(inner0, inner1, 0.5);
-            let innerEnd;
+            const innerStart = lerp(inner0, inner1, 0.5);
+            let innerEnd: Vec3;
             if (sideVertices.length % 2 === 0) {
                 const half = Math.floor(sideVertices.length / 2);
-                const innerHalf = vertices[sideVertices[half].innerTop];
-                const innerHalfPlusOne =
-                    vertices[sideVertices[half + 1].innerTop];
-                innerEnd = new Vector3().lerpVectors(
-                    innerHalf,
-                    innerHalfPlusOne,
-                    0.5
-                );
+                innerEnd = lerp(vertices[sideVertices[half].innerTop], vertices[sideVertices[half + 1].innerTop], 0.5);
             } else {
-                // TODO find a way to fix this slight inaccuracy
                 const half = Math.ceil(sideVertices.length / 2);
                 innerEnd = vertices[sideVertices[half].innerTop];
             }
-            geometry.vertices.push(innerStart, innerEnd);
+            out.push(innerStart, innerEnd);
         } else if (target === "bottomWidth") {
-            // width is measured from midpoint to midpoint, not corner to corner
             const inner0 = vertices[sideVertices[0].innerBottom];
             const inner1 = vertices[sideVertices[1].innerBottom];
-            const innerStart = new Vector3().lerpVectors(inner0, inner1, 0.5);
-            let innerEnd;
+            const innerStart = lerp(inner0, inner1, 0.5);
+            let innerEnd: Vec3;
             if (sideVertices.length % 2 === 0) {
                 const half = Math.floor(sideVertices.length / 2);
-                const innerHalf = vertices[sideVertices[half].innerBottom];
-                const innerHalfPlusOne =
-                    vertices[sideVertices[half + 1].innerBottom];
-                innerEnd = new Vector3().lerpVectors(
-                    innerHalf,
-                    innerHalfPlusOne,
-                    0.5
-                );
+                innerEnd = lerp(vertices[sideVertices[half].innerBottom], vertices[sideVertices[half + 1].innerBottom], 0.5);
             } else {
-                // TODO find a way to fix this slight inaccuracy
                 const half = Math.ceil(sideVertices.length / 2);
                 innerEnd = vertices[sideVertices[half].innerBottom];
             }
-            geometry.vertices.push(innerStart, innerEnd);
+            out.push(innerStart, innerEnd);
         } else if (target === "clayThickness") {
-            // clay thickness is measured at the center of a side, not the corner
-            const outer0 = vertices[sideVertices[0].outerTop];
-            const inner0 = vertices[sideVertices[0].innerTop];
-            const outer1 = vertices[sideVertices[1].outerTop];
-            const inner1 = vertices[sideVertices[1].innerTop];
-            const outerMid = new Vector3().lerpVectors(outer0, outer1, 0.5);
-            const innerMid = new Vector3().lerpVectors(inner0, inner1, 0.5);
-            geometry.vertices.push(outerMid, innerMid);
+            const outerMid = lerp(vertices[sideVertices[0].outerTop], vertices[sideVertices[1].outerTop], 0.5);
+            const innerMid = lerp(vertices[sideVertices[0].innerTop], vertices[sideVertices[1].innerTop], 0.5);
+            out.push(outerMid, innerMid);
         } else {
-            // if we let geometry.vertices be empty, this causes problems, for some reason.
-            geometry.vertices.push(
-                vertices[outerBottomCenter],
-                vertices[innerBottomCenter]
-            );
+            out.push(vertices[outerBottomCenter], vertices[innerBottomCenter]);
         }
-        return geometry;
+        return { vertices: out };
     }
 }
 
 const CONIC_RESOLUTION = 100;
 
 class Conic {
-    constructor(height, bottomWidth, topWidth, clayThickness, units) {
+    height: number;
+    bottomWidth: number;
+    topWidth: number;
+    clayThickness: number;
+    units: Units;
+
+    constructor(height: number, bottomWidth: number, topWidth: number, clayThickness: number, units: Units) {
         this.height = height;
         this.bottomWidth = bottomWidth;
         this.topWidth = topWidth;
@@ -677,6 +622,12 @@ class Conic {
 
     get seamMode() {
         return "base";
+    }
+
+    // Conics have no bevel angle; present so callers treating a
+    // Prism | Conic union can read the property uniformly (yields undefined).
+    get bevelAngleDegrees(): undefined {
+        return undefined;
     }
 
     calcWalls() {
@@ -795,28 +746,29 @@ class Conic {
             bottomWidth,
             topWidth,
             clayThickness,
-            units
+            units as unknown as string,
+            undefined as unknown as Units
         );
     }
 
-    calc3DGeometry() {
+    calc3DGeometry(): Mesh {
         return this.getEquivalentPrism().calc3DGeometry();
     }
 
-    calcHighlightGeometry(target) {
+    calcHighlightGeometry(target: string): LineGeometry {
         return this.getEquivalentPrism().calcHighlightGeometry(target);
     }
 }
 
 export default function makeShape(
-    sides,
-    height,
-    bottomWidth,
-    topWidth,
-    clayThickness,
-    seamMode,
-    units
-) {
+    sides: number | "∞",
+    height: any,
+    bottomWidth: any,
+    topWidth: any,
+    clayThickness: any,
+    seamMode: string,
+    units: Units
+): Prism | Conic {
     if (sides === "∞") {
         return new Conic(
             parseFloat(height),
@@ -827,7 +779,7 @@ export default function makeShape(
         );
     } else {
         return new Prism(
-            parseInt(sides),
+            parseInt(sides as unknown as string),
             parseFloat(height),
             parseFloat(bottomWidth),
             parseFloat(topWidth),
