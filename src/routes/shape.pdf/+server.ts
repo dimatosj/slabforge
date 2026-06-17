@@ -407,31 +407,66 @@ function drawCutClayInstructions(
     );
 }
 
-function drawAssembleInstructions(
+function drawAssembleInstructions(doc, startY, stepHeight, stepNumber, seamMode, shape, templateSettings) {
+  doc.moveTo(doc.page.margins.left, convertUnits(startY, "in", "pt"))
+    .lineTo(doc.page.width - doc.page.margins.right, convertUnits(startY, "in", "pt"))
+    .stroke();
+
+  doc.fontSize(fontSize).text(
+    `${stepNumber}. ${
+      seamMode === "base"
+        ? "Put the wall together and attach it to the base"
+        : "Fold the walls upwards"
+    }`,
+    doc.page.margins.left,
+    convertUnits(startY + 0.1, "in", "pt")
+  );
+
+  // Left: the flat template (small), reusing the existing template renderer.
+  const tapedX = doc.page.margins.left + 0.5;
+  const tapedY = convertUnits(startY + 0.3, "in", "pt");
+  const tapedHeight = convertUnits(stepHeight - 0.3, "in", "pt") - 2;
+  const tapedWidth =
+    (tapedHeight / doc.page.height) *
+    doc.page.width *
+    (templateSettings.widthPages / templateSettings.heightPages);
+  const tapedMargin = (tapedHeight / doc.page.height) * doc.page.margins.top;
+  drawTemplate(
     doc,
-    startY,
-    stepHeight,
-    stepNumber,
-    seamMode
-) {
-    doc.moveTo(doc.page.margins.left, convertUnits(startY, "in", "pt"))
-        .lineTo(
-            doc.page.width - doc.page.margins.right,
-            convertUnits(startY, "in", "pt")
-        )
-        .stroke();
+    { ...templateSettings, widthPages: 1, heightPages: 1 },
+    {
+      safeX: tapedX + tapedMargin,
+      safeY: tapedY + tapedMargin,
+      safeWidth: tapedWidth - 2 * tapedMargin,
+      safeHeight: tapedHeight - 2 * tapedMargin,
+      pageX: 0,
+      pageY: 0,
+      extraScale: tapedHeight / templateSettings.heightPages / doc.page.height,
+    },
+    { drawGuide: false, labelGuide: false }
+  );
 
-    doc.fontSize(fontSize).text(
-        `${stepNumber}. ${
-            seamMode === "base"
-                ? "Put the wall together and attach it to the base"
-                : "Fold the walls upwards"
-        }`,
-        doc.page.margins.left,
-        convertUnits(startY + 0.1, "in", "pt")
-    );
+  // Arrow.
+  const arrowStartX = tapedX + tapedWidth + convertUnits(0.5, "in", "pt");
+  const arrowStartY = convertUnits(startY + 0.05 + stepHeight / 2, "in", "pt");
+  const arrowEndX = drawArrow(doc, arrowStartX, arrowStartY);
 
-    // TODO: assembly
+  // Right: front elevation of the assembled vessel (trapezoid), scaled to fit.
+  const vesselHpt = convertUnits(shape.height, shape.units, "pt");
+  const elevScale = vesselHpt > 0 ? (tapedHeight * 0.8) / vesselHpt : 1;
+  const bw = convertUnits(shape.bottomWidth, shape.units, "pt") * elevScale;
+  const tw = convertUnits(shape.topWidth, shape.units, "pt") * elevScale;
+  const vh = vesselHpt * elevScale;
+  const cx = arrowEndX + convertUnits(0.5, "in", "pt") + Math.max(bw, tw) / 2;
+  const baseLineY = tapedY + tapedHeight * 0.9;
+  const topLineY = baseLineY - vh;
+  doc.moveTo(cx - bw / 2, baseLineY)
+    .lineTo(cx + bw / 2, baseLineY)
+    .lineTo(cx + tw / 2, topLineY)
+    .lineTo(cx - tw / 2, topLineY)
+    .lineTo(cx - bw / 2, baseLineY)
+    .stroke();
+  doc.fontSize(fontSize * 0.7).text("(assembled)", cx - Math.max(bw, tw) / 2, baseLineY + 3);
 }
 
 function drawScaleCheck(doc, x, y) {
@@ -537,7 +572,7 @@ function drawInstructions(doc, sides, shape, templateSettings) {
     startY += stepHeight;
     stepNumber += 1;
 
-    drawAssembleInstructions(doc, startY, stepHeight, stepNumber, seamMode);
+    drawAssembleInstructions(doc, startY, stepHeight, stepNumber, seamMode, shape, templateSettings);
 }
 
 export const GET: RequestHandler = async ({ url }) => {
