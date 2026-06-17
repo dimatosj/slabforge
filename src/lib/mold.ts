@@ -2,6 +2,7 @@ import { convertUnits, faceNormal, type Units, type Mesh, type Vec3, type Face, 
 
 const CIRCLE_RESOLUTION = 100;
 const WHITE: Color = { r: 1, g: 1, b: 1 };
+const SLUMP_BASE_THICKNESS_CM = 1; // solid base below the cavity, in cm
 
 export interface MoldParams {
   sides: number | "∞";
@@ -66,7 +67,7 @@ export function buildSlumpMold(p: MoldParams): Mesh {
   const rNarrow = Math.min(rb, rt); // cavity floor (bottom)
   const margin = p.clayThickness;
   const outerR = rWide + margin;
-  const base = convertUnits(1, "cm", p.units); // solid base thickness below the cavity
+  const base = convertUnits(SLUMP_BASE_THICKNESS_CM, "cm", p.units); // solid base thickness below the cavity
   const totalH = p.height + base;
 
   const vertices: Vec3[] = [];
@@ -86,6 +87,10 @@ export function buildSlumpMold(p: MoldParams): Mesh {
     floor.push(v(rNarrow * c, base, rNarrow * s));
   }
 
+  // NOTE: winding is uniform and the mesh is watertight, but the cavity faces are
+  // inward-oriented (the slump is non-convex, so winding is not orientation-tested).
+  // Slicers auto-repair this; do not "fix" by flipping globally (that breaks the
+  // block exterior). Per-region winding would be needed for true outward normals.
   const faces: Face[] = [];
   const tri = (a: number, b: number, c: number) =>
     faces.push({ a, b, c, color: WHITE, normal: faceNormal(vertices[a], vertices[b], vertices[c]) });
