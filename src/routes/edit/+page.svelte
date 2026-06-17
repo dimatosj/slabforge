@@ -1,20 +1,24 @@
 <script lang="ts">
-  import round from "lodash/round";
-  import makeShape, { convertUnits, type Units } from "$lib/shape";
+  import makeShape, { type Units, type Shape } from "$lib/shape";
+  import { serializeDesign, convertValue, estimatePageCount, LS_KEY } from "$lib/design";
+  import { replaceState } from "$app/navigation";
+  import type { PageData } from "./$types";
   import SpinnerSliderControl from "$lib/components/SpinnerSliderControl.svelte";
   import ShapePreview2D from "$lib/components/ShapePreview2D.svelte";
   import ShapePreview3D from "$lib/components/ShapePreview3D.svelte";
   import RadioSelector from "$lib/components/RadioSelector.svelte";
 
-  let sidesSelection = $state("prism");
-  let sides: number | "∞" = $state(4);
-  let height = $state(5);
-  let bottomWidth = $state(5);
-  let topWidth = $state(5);
-  let clayThickness = $state(0.25);
-  let seamMode = $state("sides");
-  let units: Units = $state("in");
-  let pageSize = $state("letter");
+  let { data }: { data: PageData } = $props();
+
+  let sidesSelection = $state(data.design.sides === "∞" ? "circle" : "prism");
+  let sides: number | "∞" = $state(data.design.sides);
+  let height = $state(data.design.height);
+  let bottomWidth = $state(data.design.bottomWidth);
+  let topWidth = $state(data.design.topWidth);
+  let clayThickness = $state(data.design.clayThickness);
+  let seamMode = $state(data.design.seamMode);
+  let units: Units = $state(data.design.units);
+  let pageSize = $state(data.design.pageSize);
   let highlightTarget = $state("");
 
   $effect(() => {
@@ -28,32 +32,46 @@
     }
   });
 
-  let shape = $derived(makeShape(sides, height, bottomWidth, topWidth, clayThickness, seamMode, units));
+  let shape: Shape = $derived(
+    makeShape(sides, height, bottomWidth, topWidth, clayThickness, seamMode, units)
+  );
 
   let shapeExportQuery = $derived(
-    new URLSearchParams({
-      sides: String(sides),
-      height: String(height),
-      bottomWidth: String(bottomWidth),
-      topWidth: String(topWidth),
-      clayThickness: String(clayThickness),
-      seamMode,
-      units,
-      pageSize,
-    }).toString()
+    serializeDesign({ sides, height, bottomWidth, topWidth, clayThickness, seamMode, units, pageSize })
   );
+
+  // Persist to the URL (shareable) + localStorage (reload-survival), debounced so
+  // slider drags don't thrash. replaceState (not pushState) keeps history clean.
+  let persistTimer: ReturnType<typeof setTimeout>;
+  $effect(() => {
+    const query = shapeExportQuery;
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(() => {
+      replaceState(`?${query}`, {});
+      try {
+        localStorage.setItem(LS_KEY, query);
+      } catch {
+        // localStorage unavailable; ignore
+      }
+    }, 200);
+    return () => clearTimeout(persistTimer);
+  });
 
   let oldUnits: Units = units;
   $effect(() => {
     if (units !== oldUnits) {
-      const fixUnits = (q: number) => round(convertUnits(q, oldUnits, units), 1);
-      height = fixUnits(height);
-      bottomWidth = fixUnits(bottomWidth);
-      topWidth = fixUnits(topWidth);
-      clayThickness = fixUnits(clayThickness);
+      const fix = (q: number) => convertValue(q, oldUnits, units);
+      height = fix(height);
+      bottomWidth = fix(bottomWidth);
+      topWidth = fix(topWidth);
+      clayThickness = fix(clayThickness);
       oldUnits = units;
     }
   });
+
+  let bevelAngle = $derived(shape.bevelAngleDegrees ?? 45);
+  let wallLength = $derived(shape.doMath().wallLength);
+  let pageCount = $derived(estimatePageCount(shape, units, pageSize));
 </script>
 
 <style>
@@ -69,6 +87,23 @@
   aside {
     flex: 0;
     margin: 0 0.5rem;
+  }
+  .specs {
+    margin: 1rem 0;
+    font-size: 0.9em;
+  }
+  .specs div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    white-space: nowrap;
+  }
+  .specs dt {
+    color: var(--brown, #555);
+  }
+  .specs dd {
+    margin: 0;
+    font-weight: 600;
   }
 </style>
 
@@ -123,6 +158,16 @@
         </select>
       </label>
     </fieldset>
+    <dl class="specs">
+      <div><dt>Bevel angle</dt><dd>{bevelAngle}°</dd></div>
+      <div><dt>Wall length</dt><dd>{wallLength.toFixed(2)} {units}</dd></div>
+      <div>
+        <dt>Prints on</dt>
+        <dd>
+          {#if pageSize === "auto"}1 page (auto-sized){:else}{pageCount} Letter page{pageCount === 1 ? "" : "s"}{/if}
+        </dd>
+      </div>
+    </dl>
     <a href="/shape.pdf?{shapeExportQuery}">Download PDF</a>
     <a href="/shape.stl?{shapeExportQuery}">Download STL</a>
     <a href="/slump-mold.stl?{shapeExportQuery}">Download Slump Mold</a>
