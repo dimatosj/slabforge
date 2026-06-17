@@ -170,6 +170,7 @@
     </dl>
     <a href="/shape.pdf?{shapeExportQuery}">Download PDF</a>
     <a href="/shape.stl?{shapeExportQuery}">Download STL</a>
-    <a href="/slump-mold.stl?{shapeExportQuery}">Download Slump Mold</a>
+    <a href="/slump-mold.stl?{shapeExportQuery}&moldType=hump">Download Hump Mold</a>
+    <a href="/slump-mold.stl?{shapeExportQuery}&moldType=slump">Download Slump Mold</a>
   </aside>
 </article>
