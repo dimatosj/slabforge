@@ -26,7 +26,7 @@ function normalize(v: Vec3): Vec3 {
 }
 // Replicates three.js r124 Geometry.computeFaceNormals():
 // normal = normalize((vC - vB) x (vA - vB))
-function faceNormal(va: Vec3, vb: Vec3, vc: Vec3): Vec3 {
+export function faceNormal(va: Vec3, vb: Vec3, vc: Vec3): Vec3 {
   return normalize(cross(sub(vc, vb), sub(va, vb)));
 }
 function lerp(a: Vec3, b: Vec3, t: number): Vec3 {
