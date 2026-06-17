@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { Buffer } from "node:buffer";
 import { meshToBinarySTL, isWatertight } from "./stl";
+import makeShape from "./shape";
 import type { Mesh } from "./shape";
 
 const oneTriangle: Mesh = {
@@ -61,5 +62,15 @@ describe("isWatertight", () => {
   it("returns false when a face is missing (open mesh)", () => {
     const open = { vertices: tetra.vertices, faces: tetra.faces.slice(0, 3) };
     expect(isWatertight(open)).toBe(false);
+  });
+});
+
+describe("vessel mesh is watertight", () => {
+  it.each([
+    ["prism sides-seam", () => makeShape(4, 5, 5, 5, 0.25, "sides", "in")],
+    ["prism base-seam", () => makeShape(6, 5, 5, 8, 0.25, "base", "cm")],
+    ["circle", () => makeShape("∞", 5, 5, 7, 0.25, "base", "in")],
+  ])("%s", (_label, make) => {
+    expect(isWatertight(make().calc3DGeometry())).toBe(true);
   });
 });
