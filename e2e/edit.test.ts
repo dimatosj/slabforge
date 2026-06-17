@@ -65,3 +65,28 @@ test("3D canvas survives a viewport resize", async ({ page }) => {
   await page.waitForTimeout(300);
   await expect(page.locator("canvas")).toBeVisible();
 });
+
+test("offers both hump and slump mold download links", async ({ page }) => {
+  await page.goto("/edit");
+  await expect(page.getByRole("link", { name: "Download Hump Mold" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Download Slump Mold" })).toBeVisible();
+});
+
+test("mold endpoints return binary STL for both types", async ({ request }) => {
+  const q = "sides=6&height=5&bottomWidth=5&topWidth=8&clayThickness=0.25&seamMode=base&units=in&pageSize=letter";
+  const hump = await request.get(`/slump-mold.stl?${q}&moldType=hump`);
+  expect(hump.headers()["content-type"]).toBe("model/x.stl-binary");
+  expect((await hump.body()).length).toBeGreaterThan(84);
+  const slump = await request.get(`/slump-mold.stl?${q}&moldType=slump`);
+  expect(slump.headers()["content-type"]).toBe("model/x.stl-binary");
+  expect((await slump.body()).length).toBeGreaterThan(84);
+  const bad = await request.get(`/slump-mold.stl?${q}&moldType=banana`);
+  expect(bad.status()).toBe(400);
+});
+
+test("PDF still renders after fabrication-fidelity additions", async ({ request }) => {
+  const q = "sides=4&height=5&bottomWidth=5&topWidth=7&clayThickness=0.25&seamMode=sides&units=in&pageSize=letter";
+  const pdf = await request.get(`/shape.pdf?${q}`);
+  expect(pdf.headers()["content-type"]).toBe("application/pdf");
+  expect((await pdf.body()).length).toBeGreaterThan(1000);
+});
