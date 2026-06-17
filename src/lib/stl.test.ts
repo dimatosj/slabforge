@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Buffer } from "node:buffer";
-import { meshToBinarySTL } from "./stl";
+import { meshToBinarySTL, isWatertight } from "./stl";
 import type { Mesh } from "./shape";
 
 const oneTriangle: Mesh = {
@@ -34,5 +34,32 @@ describe("meshToBinarySTL", () => {
     expect(buf.readFloatLE(96)).toBeCloseTo(2);
     expect(buf.readFloatLE(100)).toBeCloseTo(6);
     expect(buf.readFloatLE(104)).toBeCloseTo(4);
+  });
+});
+
+describe("isWatertight", () => {
+  // A closed tetrahedron: 4 vertices, 4 triangular faces.
+  const tetra = {
+    vertices: [
+      { x: 0, y: 0, z: 0 },
+      { x: 1, y: 0, z: 0 },
+      { x: 0, y: 1, z: 0 },
+      { x: 0, y: 0, z: 1 },
+    ],
+    faces: [
+      { a: 0, b: 2, c: 1, normal: { x: 0, y: 0, z: -1 }, color: { r: 1, g: 1, b: 1 } },
+      { a: 0, b: 1, c: 3, normal: { x: 0, y: -1, z: 0 }, color: { r: 1, g: 1, b: 1 } },
+      { a: 0, b: 3, c: 2, normal: { x: -1, y: 0, z: 0 }, color: { r: 1, g: 1, b: 1 } },
+      { a: 1, b: 2, c: 3, normal: { x: 1, y: 1, z: 1 }, color: { r: 1, g: 1, b: 1 } },
+    ],
+  };
+
+  it("returns true for a closed tetrahedron", () => {
+    expect(isWatertight(tetra)).toBe(true);
+  });
+
+  it("returns false when a face is missing (open mesh)", () => {
+    const open = { vertices: tetra.vertices, faces: tetra.faces.slice(0, 3) };
+    expect(isWatertight(open)).toBe(false);
   });
 });
