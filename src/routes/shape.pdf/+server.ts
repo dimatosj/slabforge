@@ -434,6 +434,41 @@ function drawAssembleInstructions(
     // TODO: assembly
 }
 
+function drawScaleCheck(doc, x, y) {
+  doc.fontSize(fontSize * 0.8);
+  doc.text("Print at 100% / Actual Size — do NOT 'Fit to Page'.", x, y);
+  doc.text("These bars must measure exactly 1 in and 1 cm:", x, y + fontSize);
+  const tick = 3;
+  // 1 inch = 72pt
+  const inY = y + fontSize * 2.6;
+  doc.moveTo(x, inY).lineTo(x + 72, inY).stroke();
+  doc.moveTo(x, inY - tick).lineTo(x, inY + tick).stroke();
+  doc.moveTo(x + 72, inY - tick).lineTo(x + 72, inY + tick).stroke();
+  doc.fontSize(fontSize * 0.7).text("1 in", x, inY + 4);
+  // 1 cm = 28.35pt
+  const cmY = inY + fontSize * 1.8;
+  doc.moveTo(x, cmY).lineTo(x + 28.35, cmY).stroke();
+  doc.moveTo(x, cmY - tick).lineTo(x, cmY + tick).stroke();
+  doc.moveTo(x + 28.35, cmY - tick).lineTo(x + 28.35, cmY + tick).stroke();
+  doc.text("1 cm", x, cmY + 4);
+}
+
+function drawRegistrationMarks(doc, x, y, w, h, row, col) {
+  const s = 8;
+  doc.save().lineWidth(0.5).strokeColor("black");
+  for (const [cx, cy] of [
+    [x, y],
+    [x + w, y],
+    [x, y + h],
+    [x + w, y + h],
+  ]) {
+    doc.moveTo(cx - s, cy).lineTo(cx + s, cy).stroke();
+    doc.moveTo(cx, cy - s).lineTo(cx, cy + s).stroke();
+  }
+  doc.fontSize(fontSize * 0.7).fillColor("black").text(`R${row} · C${col}`, x + 4, y + 4);
+  doc.restore();
+}
+
 function drawInstructions(doc, sides, shape, templateSettings) {
     let {
         height,
@@ -456,6 +491,8 @@ function drawInstructions(doc, sides, shape, templateSettings) {
         .text(`bottom width: ${bottomWidth}${units}`)
         .text(`top width: ${topWidth}${units}`)
         .text(`clay thickness: ${clayThickness}${units}`);
+
+    drawScaleCheck(doc, doc.page.width / 2, doc.page.margins.top);
 
     let startY = 1.8;
     let stepNumber = 1;
@@ -583,6 +620,9 @@ export const GET: RequestHandler = async ({ url }) => {
         pageY,
         extraScale: 1,
       });
+      if (widthPages * heightPages > 1) {
+        drawRegistrationMarks(doc, pageMargin, pageMargin, pageContentWidth, pageContentHeight, pageY + 1, pageX + 1);
+      }
       if (pageX < widthPages - 1 || pageY < heightPages - 1) {
         doc.addPage();
       }
