@@ -80,11 +80,14 @@
   let y = $derived(shape.height / 2);
 
   function peekDimensions() {
+    if (!renderer || !camera) return;
     canvas.width = 0;
     canvas.height = 0;
     canvas.setAttribute("style", "");
-    renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
-    camera.aspect = canvas.width / canvas.height;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = h === 0 ? 1 : w / h;
     camera.updateProjectionMatrix();
   }
 
@@ -124,7 +127,15 @@
       renderer.render(scene, camera);
     })();
 
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      controls.dispose();
+      meshMaterial.dispose();
+      lineMaterial.dispose();
+      mesh.geometry.dispose();
+      lines.geometry.dispose();
+      renderer.dispose();
+    };
   });
 </script>
 
@@ -141,6 +152,8 @@
     flex: 1;
   }
 </style>
+
+<svelte:window onresize={peekDimensions} />
 
 <article>
   <h2>Constructed Shape</h2>
